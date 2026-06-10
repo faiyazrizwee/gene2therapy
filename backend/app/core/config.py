@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     # API
     API_V1_STR: str = "/api/v1"
     ALLOWED_ORIGINS: list[str] = [
-        "http://localhost:3000",
         "http://localhost:5173",
         "https://gene2therapy.vercel.app",
         "https://gene2therapy-ntcsssapc-md-faiyaz-rizwees-projects.vercel.app/"
