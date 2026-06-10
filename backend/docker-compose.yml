@@ -1,0 +1,56 @@
+# Docker compose configuration for local development
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: gene2therapy_db
+    environment:
+      POSTGRES_USER: gene_user
+      POSTGRES_PASSWORD: gene_password
+      POSTGRES_DB: gene2therapy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gene_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: gene2therapy_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: gene2therapy_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DEBUG: "True"
+      DATABASE_URL: postgresql://gene_user:gene_password@db:5432/gene2therapy
+      REDIS_URL: redis://redis:6379/0
+      NCBI_EMAIL: your_email@example.com
+      SECRET_KEY: dev-secret-key
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

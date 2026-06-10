@@ -1,0 +1,51 @@
+"""
+Root .gitignore for the project
+"""
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.Python
+venv/
+env/
+.venv
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# Docker
+.env
+.env.local
+
+# Project specific
+uploads/
+/tmp/
+.pytest_cache/
+.coverage/
+
+# Temporary files
+*.log
+*.tmp
+.~*
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+
+# Environment
+.env
+.env.*
+!.env.example
+
