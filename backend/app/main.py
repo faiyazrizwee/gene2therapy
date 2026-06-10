@@ -14,6 +14,9 @@ from app.api.router import api_router
 from app.middleware.error_handlers import setup_exception_handlers
 from app.db.base import Base, engine
 
+from apscheduler.schedulers.background import BackgroundScheduler
+from app.utils.cleanup import daily_cleanup
+
 # Ensure upload directory exists
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
@@ -21,52 +24,34 @@ os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager for startup/shutdown events"""
-    # Startup
-    logger.info("🚀 Starting Gene2Therapy Backend API")
-    Base.metadata.create_all(bind=engine)
-    
-    # Seed default user and project for development
-    from app.db.base import SessionLocal, User, Project
-    db = SessionLocal()
-    try:
-        default_user = db.query(User).filter(User.id == 1).first()
-        if not default_user:
-            default_user = User(
-                id=1,
-                email="default@example.com",
-                username="default_user",
-                hashed_password="placeholder-not-secure",
-                is_active=True
-            )
-            db.add(default_user)
-            db.commit()
-            logger.info("✅ Seeded default user")
-            
-        default_project = db.query(Project).filter(Project.id == 1).first()
-        if not default_project:
-            default_project = Project(
-                id=1,
-                user_id=1,
-                name="Default Project",
-                description="Default project for DEG analysis"
-            )
-            db.add(default_project)
-            db.commit()
-            logger.info("✅ Seeded default project")
-    except Exception as e:
-        logger.error(f"Error seeding default database records: {e}")
-    finally:
-        db.close()
-    
-    yield
-    
-    # Shutdown
-    logger.info("🛑 Shutting down Gene2Therapy Backend API")
+    """Startup and shutdown events"""
 
+    logger.info("🚀 Starting Gene2Therapy Backend API")
+
+    # Create tables if they don't exist
+    Base.metadata.create_all(bind=engine)
+
+    # Scheduler for daily cleanup
+    scheduler = BackgroundScheduler()
+
+    scheduler.add_job(
+        daily_cleanup,
+        trigger="cron",
+        hour=0,
+        minute=0
+    )
+
+    scheduler.start()
+
+    logger.info("✅ Daily cleanup scheduler started")
+
+    yield
+
+    scheduler.shutdown()
+
+    logger.info("🛑 Shutting down Gene2Therapy Backend API")
 
 # Initialize FastAPI app
 app = FastAPI(
