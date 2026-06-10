@@ -11,6 +11,7 @@ import csv
 import logging
 from datetime import datetime
 import os
+import uuid
 import numpy as np
 import math
 
@@ -57,11 +58,11 @@ def get_significant_results(analysis: Analysis, db: Session):
 
     return (
         db.query(DEGResult)
-        .filter(
-            DEGResult.analysis_id == analysis.id,
-            DEGResult.p_value < pvalue_threshold,
-            func.abs(DEGResult.logFC) > logfc_threshold
-        )
+    .filter(
+        DEGResult.analysis_id == analysis.id,
+        DEGResult.adj_p_value < pvalue_threshold,
+        func.abs(DEGResult.logFC) > logfc_threshold
+    )
         .order_by(DEGResult.adj_p_value.asc())
         .all()
     )
@@ -81,7 +82,11 @@ async def upload_file(file: UploadFile = File(...)):
         content = await file.read()
         
         # Save file to upload directory
-        file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
+        unique_filename = f"{uuid.uuid4()}_{file.filename}"
+        file_path = os.path.join(settings.UPLOAD_DIR, unique_filename)
+
+        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+        
         with open(file_path, "wb") as f:
             f.write(content)
             
@@ -96,7 +101,7 @@ async def upload_file(file: UploadFile = File(...)):
         return SuccessResponse(
             message="File uploaded successfully",
             data={
-                "filename": file.filename,
+                "filename": unique_filename,
                 "genes": len(df),
                 "samples": len(df.columns),
                 "sample_names": df.columns.tolist(),
@@ -157,6 +162,16 @@ async def run_degs_analysis_task(
         )
 
         # Store results
+        # Store only significant genes
+        significant_results = pd.concat(
+            [upregulated, downregulated]
+        ).drop_duplicates(subset=["Gene"])
+        
+        logger.info(
+            f"Saving {len(significant_results)} significant genes "
+            f"out of {len(all_results)} total genes"
+        )
+        
         records = [
             {
                 "analysis_id": analysis_id,
@@ -167,10 +182,18 @@ async def run_degs_analysis_task(
                 "mean_group1": safe_float(row["mean_group1"]),
                 "mean_group2": safe_float(row["mean_group2"])
             }
-            for _, row in all_results.iterrows()
+            for _, row in significant_results.iterrows()
         ]
         
-        db.bulk_insert_mappings(DEGResult, records)
+        BATCH_SIZE = 1000
+        
+        for i in range(0, len(records), BATCH_SIZE):
+            db.bulk_insert_mappings(
+                DEGResult,
+                records[i:i + BATCH_SIZE]
+            )
+        
+        db.commit()
         
         # Update analysis
         analysis.status = AnalysisStatus.COMPLETED
@@ -268,76 +291,129 @@ async def get_results(
 ):
     """
     Get DEGs analysis results with pagination
-    
-    Returns: Results with summary and pagination info
+
+    Returns: Results with summary and visualization data
     """
     try:
-        analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
-        
+        analysis = (
+            db.query(Analysis)
+            .filter(Analysis.id == analysis_id)
+            .first()
+        )
+
         if not analysis:
-            raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
-        
+            raise HTTPException(
+                status_code=404,
+                detail=f"Analysis {analysis_id} not found"
+            )
+
         significant_results = get_significant_results(analysis, db)
         top_results = significant_results[:limit]
 
+        # Heatmap genes (Top 10 up + Top 10 down)
         top_upregulated_genes = sorted(
-            [r for r in significant_results if r.logFC > 0],
+            [r for r in significant_results if (r.logFC or 0) > 0],
             key=lambda x: x.logFC,
             reverse=True
         )[:10]
+
         top_downregulated_genes = sorted(
-            [r for r in significant_results if r.logFC < 0],
+            [r for r in significant_results if (r.logFC or 0) < 0],
             key=lambda x: x.logFC
         )[:10]
-        heatmap_results = top_upregulated_genes + top_downregulated_genes
 
-        all_results_for_ma = (
+        heatmap_results = (
+            top_upregulated_genes +
+            top_downregulated_genes
+        )
+
+        # Since only significant genes are stored now,
+        # fetch them directly for plots
+        plot_results = (
             db.query(DEGResult)
             .filter(DEGResult.analysis_id == analysis.id)
-            .limit(10000)
             .all()
         )
 
         ma_plot_data = []
-        
-        for r in all_results_for_ma:
+        volcano_plot_data = []
+
+        for r in plot_results:
+
+            pval = safe_float(r.p_value)
+            adj_pval = safe_float(r.adj_p_value)
+
+            # Volcano plot
+            volcano_plot_data.append({
+                "gene": r.gene,
+                "logFC": safe_float(r.logFC),
+                "p_value": pval,
+                "adj_p_value": adj_pval,
+                "neg_log10_p": (
+                    -math.log10(pval)
+                    if pval is not None and pval > 0
+                    else None
+                ),
+                "significant": (
+                    adj_pval is not None
+                    and adj_pval < 0.05
+                )
+            })
+
+            # MA plot
             A_value = safe_float(
                 np.log2(
-                    ((r.mean_group1 or 0) + (r.mean_group2 or 0)) / 2 + 1
+                    (
+                        ((r.mean_group1 or 0) +
+                         (r.mean_group2 or 0))
+                        / 2
+                    ) + 1
                 )
             )
-        
+
             ma_plot_data.append({
                 "gene": r.gene,
                 "A": A_value,
                 "logFC": safe_float(r.logFC),
-                "p_value": safe_float(r.p_value),
-                "adj_p_value": safe_float(r.adj_p_value),
+                "p_value": pval,
+                "adj_p_value": adj_pval,
                 "significant": (
-                    safe_float(r.adj_p_value) is not None
-                    and safe_float(r.adj_p_value) < 0.05
+                    adj_pval is not None
+                    and adj_pval < 0.05
                 )
             })
 
         input_data = analysis.input_data or {}
-        group1_name = input_data.get("group1_name", "Control")
-        group2_name = input_data.get("group2_name", "Treatment")
+
+        group1_name = input_data.get(
+            "group1_name",
+            "Control"
+        )
+
+        group2_name = input_data.get(
+            "group2_name",
+            "Treatment"
+        )
+
         summary = analysis.result_summary or {}
         pca_data = summary.get("pca", {})
-        
+
         return SuccessResponse(
             message="Results retrieved successfully",
             data={
                 "analysis_id": analysis.id,
                 "status": analysis.status.value,
-                "summary": analysis.result_summary,
+                "summary": summary,
                 "error": analysis.error_message,
+
                 "results_count": len(top_results),
                 "total_significant_genes": len(significant_results),
+
                 "group_names": {
                     "group1": group1_name,
                     "group2": group2_name
                 },
+
                 "results": [
                     {
                         "gene": r.gene,
@@ -349,6 +425,7 @@ async def get_results(
                     }
                     for r in top_results
                 ],
+
                 "heatmap_data": [
                     {
                         "gene": r.gene,
@@ -358,14 +435,24 @@ async def get_results(
                     }
                     for r in heatmap_results
                 ],
+
                 "pca_data": pca_data,
-                "ma_plot_data": ma_plot_data
+                "ma_plot_data": ma_plot_data,
+                "volcano_plot_data": volcano_plot_data
             }
         ).model_dump()
-        
+
+    except HTTPException:
+        raise
+
     except Exception as e:
-        logger.error(f"Failed to get results: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception(
+            f"Failed to get results for analysis {analysis_id}"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
 
 
 @router.get("/results/{analysis_id}/export")

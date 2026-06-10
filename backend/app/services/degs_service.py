@@ -206,9 +206,15 @@ class DEGsAnalysisService:
         Filter and sort significant DEGs
         Extracted from: filter_and_sort_degs()
         """
+        p_col = (
+            'adj_p_value'
+            if 'adj_p_value' in results.columns
+            else 'p_value'
+        )
+        
         significant_mask = (
             (np.abs(results['logFC']) > logFC_threshold) &
-            (results['p_value'] < p_value_threshold)
+            (results[p_col] < p_value_threshold)
         )
         significant_genes = results[significant_mask].copy()
         
