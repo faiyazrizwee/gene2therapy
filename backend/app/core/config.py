@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:5173",
         "https://gene2therapy.vercel.app",
-        "https://gene2therapy-ntcsssapc-md-faiyaz-rizwees-projects.vercel.app/"
+        "https://gene2therapy-ntcsssapc-md-faiyaz-rizwees-projects.vercel.app"
     ]
     
     # Database
