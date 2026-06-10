@@ -8,7 +8,6 @@ import HubIcon from '@mui/icons-material/Hub';
 import BiotechIcon from '@mui/icons-material/Biotech';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
-// import ScienceIcon from '@mui/icons-material/Science';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
@@ -159,7 +158,6 @@ const PathwayInputPage: React.FC = () => {
           { icon: <BiotechIcon sx={{ fontSize: 18 }} />, label: 'NCBI Entrez', color: '#6366f1' },
           { icon: <AccountTreeIcon sx={{ fontSize: 18 }} />, label: 'KEGG Pathways', color: '#3b82f6' },
           { icon: <LocalHospitalIcon sx={{ fontSize: 18 }} />, label: 'Open Targets', color: '#10b981' },
-          // { icon: <ScienceIcon sx={{ fontSize: 18 }} />, label: 'ChEMBL', color: '#14b8a6' },
         ].map((step, i) => (
           <React.Fragment key={i}>
             <Box sx={{
