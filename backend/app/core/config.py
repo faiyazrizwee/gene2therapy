@@ -18,10 +18,7 @@ class Settings(BaseSettings):
     
     # API
     API_V1_STR: str = "/api/v1"
-    ALLOWED_ORIGINS: List[str] = os.getenv(
-        "ALLOWED_ORIGINS",
-        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
-    ).split(",")
+    ALLOWED_ORIGINS: List[str] = ["*"]
     
     # Database
     DATABASE_URL: str = os.getenv(
