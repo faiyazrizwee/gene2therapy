@@ -31,10 +31,6 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     
-    # Redis
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    CACHE_TTL: int = 3600
-    
     # Security
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",
