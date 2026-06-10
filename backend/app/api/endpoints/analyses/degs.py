@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 import os
 import numpy as np
+import math
 
 from app.core.config import settings
 from app.db.session import get_db
@@ -21,6 +22,31 @@ from app.services.degs_service import DEGsAnalysisService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/degs", tags=["DEGs Analysis"])
+
+def safe_float(value):
+    """
+    Convert values to JSON-safe floats.
+    Returns None for NaN, inf, -inf, or invalid values.
+    """
+    try:
+        if value is None:
+            return None
+
+        if pd.isna(value):
+            return None
+
+        value = float(value)
+
+        if math.isnan(value):
+            return None
+
+        if math.isinf(value):
+            return None
+
+        return value
+
+    except Exception:
+        return None
 
 
 def get_significant_results(analysis: Analysis, db: Session):
@@ -134,12 +160,12 @@ async def run_degs_analysis_task(
         records = [
             {
                 "analysis_id": analysis_id,
-                "gene": row["Gene"],
-                "logFC": float(row["logFC"]),
-                "p_value": float(row["p_value"]),
-                "adj_p_value": float(row.get("adj_p_value", 1.0)),
-                "mean_group1": float(row["mean_group1"]),
-                "mean_group2": float(row["mean_group2"])
+                "gene": str(row["Gene"]),
+                "logFC": safe_float(row["logFC"]),
+                "p_value": safe_float(row["p_value"]),
+                "adj_p_value": safe_float(row.get("adj_p_value")),
+                "mean_group1": safe_float(row["mean_group1"]),
+                "mean_group2": safe_float(row["mean_group2"])
             }
             for _, row in all_results.iterrows()
         ]
@@ -272,24 +298,26 @@ async def get_results(
             .all()
         )
 
-        ma_plot_data = [
-            {
-                "gene": r.gene,
-                "A": float(
-                    np.log2(
-                        ((r.mean_group1 + r.mean_group2) / 2) + 1
-                    )
-                ),
-                "logFC": r.logFC,
-                "p_value": r.p_value,
-                "adj_p_value": r.adj_p_value,
-                "significant": (
-                    r.adj_p_value is not None
-                    and r.adj_p_value < 0.05
+        ma_plot_data = []
+        
+        for r in all_results_for_ma:
+            A_value = safe_float(
+                np.log2(
+                    ((r.mean_group1 or 0) + (r.mean_group2 or 0)) / 2 + 1
                 )
-            }
-            for r in all_results_for_ma
-        ]
+            )
+        
+            ma_plot_data.append({
+                "gene": r.gene,
+                "A": A_value,
+                "logFC": safe_float(r.logFC),
+                "p_value": safe_float(r.p_value),
+                "adj_p_value": safe_float(r.adj_p_value),
+                "significant": (
+                    safe_float(r.adj_p_value) is not None
+                    and safe_float(r.adj_p_value) < 0.05
+                )
+            })
 
         input_data = analysis.input_data or {}
         group1_name = input_data.get("group1_name", "Control")
@@ -313,21 +341,23 @@ async def get_results(
                 "results": [
                     {
                         "gene": r.gene,
-                        "logFC": r.logFC,
-                        "p_value": r.p_value,
-                        "adj_p_value": r.adj_p_value,
-                        "mean_group1": r.mean_group1,
-                        "mean_group2": r.mean_group2
-                    } for r in top_results
+                        "logFC": safe_float(r.logFC),
+                        "p_value": safe_float(r.p_value),
+                        "adj_p_value": safe_float(r.adj_p_value),
+                        "mean_group1": safe_float(r.mean_group1),
+                        "mean_group2": safe_float(r.mean_group2)
+                    }
+                    for r in top_results
                 ],
                 "heatmap_data": [
                     {
                         "gene": r.gene,
-                        "group1": r.mean_group1,
-                        "group2": r.mean_group2,
-                        "logFC": r.logFC
-                    } for r in heatmap_results
-                ],   
+                        "group1": safe_float(r.mean_group1),
+                        "group2": safe_float(r.mean_group2),
+                        "logFC": safe_float(r.logFC)
+                    }
+                    for r in heatmap_results
+                ],
                 "pca_data": pca_data,
                 "ma_plot_data": ma_plot_data
             }
