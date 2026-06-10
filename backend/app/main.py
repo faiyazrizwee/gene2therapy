@@ -33,6 +33,39 @@ async def lifespan(app: FastAPI):
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
 
+    from app.db.base import SessionLocal, User, Project
+
+    db = SessionLocal()
+    
+    try:
+        default_user = db.query(User).filter(User.id == 1).first()
+    
+        if not default_user:
+            default_user = User(
+                id=1,
+                email="default@example.com",
+                username="default_user",
+                hashed_password="placeholder-not-secure",
+                is_active=True
+            )
+            db.add(default_user)
+            db.commit()
+    
+        default_project = db.query(Project).filter(Project.id == 1).first()
+    
+        if not default_project:
+            default_project = Project(
+                id=1,
+                user_id=1,
+                name="Default Project",
+                description="Default project for Gene2Therapy"
+            )
+            db.add(default_project)
+            db.commit()
+    
+    finally:
+        db.close()
+
     # Scheduler for daily cleanup
     scheduler = BackgroundScheduler()
 
