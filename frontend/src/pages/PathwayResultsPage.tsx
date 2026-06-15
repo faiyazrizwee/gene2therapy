@@ -107,6 +107,7 @@ const PathwayResultsPage: React.FC = () => {
 
   const pathways = useMemo(() => data?.pathways || [], [data]);
   const geneAnnotations = useMemo(() => data?.gene_annotations || [], [data]);
+  console.log("FULL DATA:", data);
   console.log("GENE ANNOTATIONS:", geneAnnotations);
   const diseases = useMemo(() => data?.disease_results || [], [data]);
   const drugs = useMemo(() => data?.drugs || [], [data]);
