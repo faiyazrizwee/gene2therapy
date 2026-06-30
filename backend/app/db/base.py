@@ -23,6 +23,7 @@ else:
         pool_size=settings.DB_POOL_SIZE,
         max_overflow=settings.DB_MAX_OVERFLOW,
         echo=settings.DEBUG,
+        connect_args={"sslmode": "require"} if "render.com" in settings.DATABASE_URL or "sslmode=require" in settings.DATABASE_URL else {}
     )
 
 # Create session factory

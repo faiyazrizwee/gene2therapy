@@ -162,6 +162,7 @@ const ResultsPage: React.FC = () => {
 
   const summary = data.summary || { total_genes: 0, significant_degs: 0, upregulated: 0, downregulated: 0, analysis_method: 'DESeq2' };
   const results: DEGRow[] = data.results || [];
+  const volcanoPlotData = data.volcano_plot_data || [];
   const heatmapData: HeatmapRow[] = data.heatmap_data || [];
   const maPlotData: MAPlotRow[] = data.ma_plot_data || [];
   const pcaData = data.pca_data || {};
@@ -272,8 +273,17 @@ const ResultsPage: React.FC = () => {
   })();
 
   const pagedResults = filteredResults.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  const upregulated = results.filter((r) => r.logFC > 0);
-  const downregulated = results.filter((r) => r.logFC < 0);
+  const upregulated = volcanoPlotData.filter(
+    (r: any) => r.significant && r.logFC > 0
+  );
+  
+  const downregulated = volcanoPlotData.filter(
+    (r: any) => r.significant && r.logFC < 0
+  );
+  
+  const nonsignificant = volcanoPlotData.filter(
+    (r: any) => !r.significant
+  );
 
   const downloadTable = (format: 'csv' | 'xls') => {
     const headers = ['Gene', 'log2 Fold Change', 'p-value', 'Adjusted p-value', 'Direction'];
@@ -374,19 +384,53 @@ const ResultsPage: React.FC = () => {
     mode: 'markers',
     name,
     text: pts.map((r) => r.gene),
-    hovertemplate: '<b>%{y}</b><br>%{x}: %{z:.3f} [log2(mean+1)]<extra></extra>',
+    hovertemplate: '<b>%{text}</b><br>' + 'Gene: %{text}<br>' + 'log2FC: %{x:.3f}<br>' + '-log10(p): %{y:.3f}<extra></extra>',
     marker: { color, opacity: 0.82, size },
   });
 
   const plotData = [
-    makeTrace(downregulated, '#2563eb', `Downregulated (${downregulated.length})`, 8),
-    makeTrace(upregulated, '#dc2626', `Upregulated (${upregulated.length})`, 8),
+    makeTrace(
+      nonsignificant,
+      '#94a3b8',
+      `Not Significant (${nonsignificant.length})`,
+      4
+    ),
+  
+    makeTrace(
+      downregulated,
+      '#2563eb',
+      `Downregulated (${downregulated.length})`,
+      8
+    ),
+  
+    makeTrace(
+      upregulated,
+      '#dc2626',
+      `Upregulated (${upregulated.length})`,
+      8
+    )
   ];
-
-  const volcanoYValues = results.map((r) => -Math.log10(Math.max(r.p_value, 1e-300)));
-  const maxY = Math.max(...volcanoYValues, -Math.log10(pvalueThreshold), 10);
-  const maxAbsLogFC = Math.max(...results.map((r) => Math.abs(r.logFC)), logfcThreshold, 2);
-  const xRange = [-Math.ceil(maxAbsLogFC + 0.5), Math.ceil(maxAbsLogFC + 0.5)];
+  
+  const volcanoYValues = volcanoPlotData.map(
+    (r: any) => -Math.log10(Math.max(r.p_value, 1e-300))
+  );
+  
+  const maxY = Math.max(
+    ...volcanoYValues,
+    -Math.log10(pvalueThreshold),
+    10
+  );
+  
+  const maxAbsLogFC = Math.max(
+    ...volcanoPlotData.map((r: any) => Math.abs(r.logFC)),
+    logfcThreshold,
+    2
+  );
+  
+  const xRange = [
+    -Math.ceil(maxAbsLogFC + 0.5),
+    Math.ceil(maxAbsLogFC + 0.5)
+  ];
 
   return (
     <Box>

@@ -14,9 +14,6 @@ from app.api.router import api_router
 from app.middleware.error_handlers import setup_exception_handlers
 from app.db.base import Base, engine
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from app.utils.cleanup import daily_cleanup
-
 # Ensure upload directory exists
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
@@ -66,23 +63,7 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    # Scheduler for daily cleanup
-    scheduler = BackgroundScheduler()
-
-    scheduler.add_job(
-        daily_cleanup,
-        trigger="cron",
-        hour=0,
-        minute=0
-    )
-
-    scheduler.start()
-
-    logger.info("✅ Daily cleanup scheduler started")
-
     yield
-
-    scheduler.shutdown()
 
     logger.info("🛑 Shutting down Gene2Therapy Backend API")
 

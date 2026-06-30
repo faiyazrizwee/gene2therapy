@@ -58,12 +58,12 @@ def get_significant_results(analysis: Analysis, db: Session):
 
     return (
         db.query(DEGResult)
-    .filter(
-        DEGResult.analysis_id == analysis.id,
-        DEGResult.adj_p_value < pvalue_threshold,
-        func.abs(DEGResult.logFC) > logfc_threshold
-    )
-        .order_by(DEGResult.adj_p_value.asc())
+        .filter(
+            DEGResult.analysis_id == analysis.id,
+            DEGResult.p_value < pvalue_threshold,
+            func.abs(DEGResult.logFC) > logfc_threshold
+        )
+        .order_by(DEGResult.p_value.asc())
         .all()
     )
 
@@ -79,8 +79,7 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="No file provided")
     
     try:
-        content = await file.read()
-        
+        import shutil
         # Save file to upload directory
         unique_filename = f"{uuid.uuid4()}_{file.filename}"
         file_path = os.path.join(settings.UPLOAD_DIR, unique_filename)
@@ -88,23 +87,28 @@ async def upload_file(file: UploadFile = File(...)):
         os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
         
         with open(file_path, "wb") as f:
-            f.write(content)
+            shutil.copyfileobj(file.file, f)
             
         # Detect delimiter
-        if file.filename.endswith('.tsv'):
-            df = pd.read_csv(file_path, sep='\t', index_col=0)
-        else:
-            df = pd.read_csv(file_path, index_col=0)
+        sep = '\t' if file.filename.endswith('.tsv') else ','
         
-        logger.info(f"Uploaded file saved to {file_path}, shape: {df.shape}")
+        # Read only header to get column names
+        df_header = pd.read_csv(file_path, sep=sep, index_col=0, nrows=0)
+        sample_names = df_header.columns.tolist()
+        
+        # Fast line count for number of genes
+        genes = sum(1 for _ in open(file_path, 'rb')) - 1
+        genes = max(0, genes)
+        
+        logger.info(f"Uploaded file saved to {file_path}, shape: ({genes}, {len(sample_names)})")
         
         return SuccessResponse(
             message="File uploaded successfully",
             data={
                 "filename": unique_filename,
-                "genes": len(df),
-                "samples": len(df.columns),
-                "sample_names": df.columns.tolist(),
+                "genes": genes,
+                "samples": len(sample_names),
+                "sample_names": sample_names,
             }
         ).model_dump()
     
@@ -151,7 +155,20 @@ async def run_degs_analysis_task(
             logFC_threshold=logFC_threshold,
             p_value_threshold=p_value_threshold
         )
+        logger.info(all_results.columns.tolist())
+        logger.info(f"ALL RESULTS SHAPE: {all_results.shape}")
+
+        results_dir = "/tmp/gene2therapy/results"
+        os.makedirs(results_dir, exist_ok=True)
+        logger.info(f"CREATED DIR: {results_dir}")
         
+        results_file = os.path.join(
+            results_dir,
+            f"analysis_{analysis_id}.parquet"
+        )
+        logger.info(f"WRITING PARQUET: {results_file}")
+        all_results.to_parquet(results_file)
+        logger.info(f"PARQUET SAVED: {results_file}")
         # Generate PCA coordinates
         pca_results = DEGsAnalysisService.generate_pca_data(
             count_matrix=count_matrix,
@@ -197,6 +214,9 @@ async def run_degs_analysis_task(
         
         # Update analysis
         analysis.status = AnalysisStatus.COMPLETED
+        # Save full DESeq2 results for volcano/MA plots
+
+        
         analysis.result_summary = {
             "total_genes": len(all_results),
             "significant_degs": len(upregulated) + len(downregulated),
@@ -205,7 +225,8 @@ async def run_degs_analysis_task(
             "analysis_method": analysis_method,
             "logFC_threshold": logFC_threshold,
             "p_value_threshold": p_value_threshold,
-            "pca": pca_results
+            "pca": pca_results,
+            "results_file": results_file
         }
         analysis.completed_at = datetime.utcnow()
         
@@ -329,24 +350,50 @@ async def get_results(
 
         # Since only significant genes are stored now,
         # fetch them directly for plots
-        plot_results = (
-            db.query(DEGResult)
-            .filter(DEGResult.analysis_id == analysis.id)
-            .all()
-        )
+        summary = analysis.result_summary or {}
+        
+        results_file = summary.get("results_file")
 
+        if not results_file or not os.path.exists(results_file):
+            raise HTTPException(
+                status_code=500,
+                detail="Plot data file not found"
+            )
+        
+        plot_df = pd.read_parquet(results_file)
+        
+        # Keep all significant genes
+        sig_df = plot_df[
+            plot_df["adj_p_value"] < 0.05
+        ]
+        
+        # Sample background genes
+        nonsig_df = plot_df[
+            plot_df["adj_p_value"] >= 0.05
+        ]
+        
+        if len(nonsig_df) > 10000:
+            nonsig_df = nonsig_df.sample(
+                n=10000,
+                random_state=42
+            )
+        
+        plot_df = pd.concat(
+            [sig_df, nonsig_df],
+            ignore_index=True
+        )
+        
         ma_plot_data = []
         volcano_plot_data = []
-
-        for r in plot_results:
-
-            pval = safe_float(r.p_value)
-            adj_pval = safe_float(r.adj_p_value)
-
-            # Volcano plot
+        
+        for _, r in plot_df.iterrows():
+        
+            pval = safe_float(r.get("p_value"))
+            adj_pval = safe_float(r.get("adj_p_value"))
+        
             volcano_plot_data.append({
-                "gene": r.gene,
-                "logFC": safe_float(r.logFC),
+                "gene": str(r.get("Gene")),
+                "logFC": safe_float(r.get("logFC")),
                 "p_value": pval,
                 "adj_p_value": adj_pval,
                 "neg_log10_p": (
@@ -359,22 +406,20 @@ async def get_results(
                     and adj_pval < 0.05
                 )
             })
-
-            # MA plot
+        
+            mean1 = safe_float(r.get("mean_group1")) or 0
+            mean2 = safe_float(r.get("mean_group2")) or 0
+        
             A_value = safe_float(
                 np.log2(
-                    (
-                        ((r.mean_group1 or 0) +
-                         (r.mean_group2 or 0))
-                        / 2
-                    ) + 1
+                    ((mean1 + mean2) / 2) + 1
                 )
             )
-
+        
             ma_plot_data.append({
-                "gene": r.gene,
+                "gene": str(r.get("Gene")),
                 "A": A_value,
-                "logFC": safe_float(r.logFC),
+                "logFC": safe_float(r.get("logFC")),
                 "p_value": pval,
                 "adj_p_value": adj_pval,
                 "significant": (

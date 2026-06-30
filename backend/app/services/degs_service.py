@@ -6,6 +6,7 @@ Extracted from Streamlit, production-hardened
 import pandas as pd
 import numpy as np
 from scipy.stats import ttest_ind
+from statsmodels.stats.multitest import multipletests
 import logging
 from typing import Tuple
 import time
@@ -126,6 +127,12 @@ class DEGsAnalysisService:
             'mean_group2': mean_group2
         })
         
+        results["adj_p_value"] = multipletests(
+            results["p_value"].fillna(1.0),
+            method="fdr_bh"
+        )[1]
+
+
         return results
     
     @staticmethod
@@ -206,11 +213,7 @@ class DEGsAnalysisService:
         Filter and sort significant DEGs
         Extracted from: filter_and_sort_degs()
         """
-        p_col = (
-            'adj_p_value'
-            if 'adj_p_value' in results.columns
-            else 'p_value'
-        )
+        p_col = "p_value"
         
         significant_mask = (
             (np.abs(results['logFC']) > logFC_threshold) &

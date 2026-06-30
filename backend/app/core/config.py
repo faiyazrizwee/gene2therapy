@@ -20,15 +20,13 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:5173",
+        "http://localhost:3000",
         "https://gene2therapy.vercel.app",
         "https://gene2therapy-ntcsssapc-md-faiyaz-rizwees-projects.vercel.app"
     ]
     
     # Database
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql://gene_user:gene_password@localhost:5432/gene2therapy"
-    )
+    DATABASE_URL: str = "sqlite:///./gene2therapy.db"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     
@@ -78,3 +76,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+settings.DATABASE_URL = "sqlite:///./gene2therapy.db"
