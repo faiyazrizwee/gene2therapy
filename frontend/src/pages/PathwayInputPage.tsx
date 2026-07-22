@@ -25,6 +25,7 @@ const PathwayInputPage: React.FC = () => {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isHuman = organism === "human";
 
   // Example genes to load quickly
   const loadExampleGenes = () => {
@@ -100,6 +101,9 @@ const PathwayInputPage: React.FC = () => {
 
   const handleStartAnalysis = async () => {
     const parsedGenes = parseGenes(genesText);
+
+    console.log("ORGANISM SENT:", organism);
+    console.log("INCLUDE DRUGS:", includeDrugs);
 
     if (parsedGenes.length === 0) {
       setError('Please enter at least one valid gene symbol.');
@@ -311,11 +315,21 @@ const PathwayInputPage: React.FC = () => {
                 <Select
                   value={organism}
                   label="Organism Database"
-                  onChange={(e) => setOrganism(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setOrganism(value);
+
+                    if (value !== "human") {
+                      setIncludeDrugs(false);
+                    }
+                  }}
                 >
                   <MenuItem value="human">Homo sapiens (Human)</MenuItem>
                   <MenuItem value="mouse">Mus musculus (Mouse)</MenuItem>
                   <MenuItem value="rat">Rattus norvegicus (Rat)</MenuItem>
+                  <MenuItem value="rice">Oryza sativa (Rice)</MenuItem>
+                  <MenuItem value="maize">Zea mays (Maize)</MenuItem>
+                  <MenuItem value="arabidopsis">Arabidopsis thaliana</MenuItem>
                 </Select>
               </FormControl>
 
@@ -324,11 +338,15 @@ const PathwayInputPage: React.FC = () => {
                 control={
                   <Checkbox
                     checked={includeDrugs}
+                    disabled={!isHuman}
                     onChange={(e) => setIncludeDrugs(e.target.checked)}
-                    color="secondary"
                   />
                 }
-                label="Query Open Targets Therapeutic Associations"
+                label={
+                  isHuman
+                    ? "Query Open Targets Therapeutic Associations"
+                    : "Drug discovery available only for Human datasets"
+                }
                 sx={{ mb: 3, display: 'block' }}
               />
 

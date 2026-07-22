@@ -39,18 +39,41 @@ async def run_pathway_analysis_task(
             
         # Map organism to Entrez/KEGG/species
         org_lower = organism.lower()
-        if "mouse" in org_lower:
-            ncbi_org = "Mus musculus"
-            kegg_prefix = "mmu"
-            species = "Mus musculus"
-        elif "rat" in org_lower:
-            ncbi_org = "Rattus norvegicus"
-            kegg_prefix = "rno"
-            species = "Rattus norvegicus"
-        else:
+
+        logger.info(f"ORGANISM RECEIVED = {organism}")
+
+        if org_lower == "human":
             ncbi_org = "Homo sapiens"
             kegg_prefix = "hsa"
             species = "Homo sapiens"
+
+        elif org_lower == "mouse":
+            ncbi_org = "Mus musculus"
+            kegg_prefix = "mmu"
+            species = "Mus musculus"
+
+        elif org_lower == "rat":
+            ncbi_org = "Rattus norvegicus"
+            kegg_prefix = "rno"
+            species = "Rattus norvegicus"
+
+        elif org_lower == "rice":
+            ncbi_org = "Oryza sativa"
+            kegg_prefix = "osa"
+            species = "Oryza sativa"
+
+        elif org_lower == "maize":
+            ncbi_org = "Zea mays"
+            kegg_prefix = "zma"
+            species = "Zea mays"
+
+        elif org_lower == "arabidopsis":
+            ncbi_org = "Arabidopsis thaliana"
+            kegg_prefix = "ath"
+            species = "Arabidopsis thaliana"
+
+        else:
+            raise ValueError(f"Unsupported organism: {organism}")
             
         # 1. Clean and validate genes
         valid_genes, invalid_genes = PathwayAnalysisService.filter_valid_genes(genes)
@@ -83,11 +106,16 @@ async def run_pathway_analysis_task(
         )
         
         db.commit()
+        logger.info(f"NCBI={ncbi_org} KEGG={kegg_prefix}")
             
         # 5. Open Targets query (if include_drugs is True)
         disease_results = []
         drug_results = []
-        if include_drugs:
+        human_species = (
+            species == "Homo sapiens"
+        )
+
+        if include_drugs and human_species:
             ot_start = time.time()
             disease_results, drug_results = PathwayAnalysisService.run_opentargets_query(valid_genes, species)
             db.commit()
@@ -243,7 +271,10 @@ async def get_pathway_results(
         ).all()
         
         summary = analysis.result_summary or {}
-        logger.info(f"RESULTS API PROGRESS={summary.get("progress")} STEP={summary.get("current_step")}")
+        logger.info(
+            f"RESULTS API PROGRESS={summary.get('progress')} "
+            f"STEP={summary.get('current_step')}"
+        )
         
         drug_rows = summary.get("drug_results")
         if not drug_rows:

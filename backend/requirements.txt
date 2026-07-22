@@ -18,6 +18,7 @@ numpy>=1.26.4
 scipy>=1.14.0
 pydeseq2>=0.4.6
 networkx>=3.2
+statsmodels>=0.14.0
 
 # External APIs
 requests>=2.31.0
