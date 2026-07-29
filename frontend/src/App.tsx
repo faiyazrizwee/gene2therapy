@@ -37,9 +37,10 @@ function App() {
             <Box component="footer" sx={{ py: 3, px: 2, mt: 'auto', borderTop: '1px solid rgba(255, 255, 255, 0.08)', backgroundColor: 'rgba(17, 24, 39, 0.5)' }}>
               <Container maxWidth="lg">
                 <Typography variant="body2" color="text.secondary" align="center">
-                  {'© '}
-                  {new Date().getFullYear()}
-                  {' Gene2Therapy. Integrated Genomic Analysis & Drug Discovery Portal.'}
+                  {' © 2026 Md Faiyaz Rizwee.'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" align="center">
+                  {'Gene2Therapy - Integrated Genomic Analysis & Drug Discovery Portal.'}
                 </Typography>
               </Container>
             </Box>

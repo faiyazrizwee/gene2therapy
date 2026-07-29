@@ -44,8 +44,7 @@ const HomePage: React.FC = () => {
           Gene-to-Therapy Discovery Platform
         </Typography>
         <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 700, mx: 'auto', fontWeight: 400, px: 2, mb: 5 }}>
-          Accelerate your genomic workflow. Run differential expression analysis or map gene signatures
-          directly to therapeutic pathways and clinical drug candidates.
+          Welcome to Version 2! Accelerate your genomic workflow with new 2D and 3D PCA, Heat map, and MA plots for differential expression analysis. Our pathway module now features genomic locations and expanded organism support.
         </Typography>
 
         {/* Floating stats row */}

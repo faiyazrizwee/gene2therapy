@@ -122,6 +122,35 @@ const Header: React.FC = () => {
               >
                 Therapy
               </Typography>
+              <Typography
+                component="span"
+                sx={{
+                  fontWeight: 800,
+                  fontSize: '1.15rem',
+                  letterSpacing: '-0.03em',
+                  lineHeight: 1,
+                  background: 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                 - 
+              </Typography>
+              <Typography
+                component="span"
+                sx={{
+                  fontWeight: 900,
+                  fontSize: '1.25rem',
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1,
+                  mx: '1px',
+                  background: 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                v2
+              </Typography>
             </Box>
           </Box>
 
